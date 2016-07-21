@@ -13,9 +13,34 @@ import json
 import re
 from memcache import Client
 
+import pygame
+from pygame.locals import *
+
+#Pygame setup
+RECORD = 0
+os.putenv('SDL_FBDEV', '/dev/fb1')
+os.putenv('SDL_MOUSEDRV', 'TSLIB')
+os.putenv('SDL_MOUSEDEV', '/dev/input/touchscreen')
+
+pygame.init()
+pygame.mouse.set_visible(False)
+pygame.mixer.quit()
+screen = pygame.display.set_mode((320,240))
+screen.fill((0,0,0))
+pygame.display.update()
+
+font = pygame.font.Font(None, 50)
+buttons = {'PUSH AND':(160,100), 'HOLD TO TALK':(160,160)}
+
+for i,j in buttons.items():
+    text_surface = font.render('%s'%i, True, (255,255,255))
+    rect = text_surface.get_rect(center=j)
+    screen.blit(text_surface, rect)
+pygame.display.update()
+
 #Settings
-button = 18 #GPIO Pin with button connected
-lights = [24, 25] # GPIO Pins with LED's conneted
+#button = 18 #GPIO Pin with button connected
+#lights = [24, 25] # GPIO Pins with LED's conneted
 device = "plughw:1" # Name of your microphone/soundcard in arecord -L
 
 #Setup
@@ -54,7 +79,7 @@ def gettoken():
 		
 
 def alexa():
-	GPIO.output(lights[0], GPIO.HIGH)
+	#GPIO.output(lights[0], GPIO.HIGH)
 	url = 'https://access-alexa-na.amazon.com/v1/avs/speechrecognizer/recognize'
 	headers = {'Authorization' : 'Bearer %s' % gettoken()}
 	d = {
@@ -93,59 +118,70 @@ def alexa():
 				audio = d.split('\r\n\r\n')[1].rstrip('--')
 		with open(path+"response.mp3", 'wb') as f:
 			f.write(audio)
-		GPIO.output(lights[1], GPIO.LOW)
+		#GPIO.output(lights[1], GPIO.LOW)
 
 		os.system('mpg123 -q {}1sec.mp3 {}response.mp3 {}1sec.mp3'.format(path, path, path))
-		GPIO.output(lights[0], GPIO.LOW)
-	else:
-		GPIO.output(lights[1], GPIO.LOW)
-		for x in range(0, 3):
-			time.sleep(.2)
-			GPIO.output(lights[1], GPIO.HIGH)
-			time.sleep(.2)
-			GPIO.output(lights[1], GPIO.LOW)
+		#GPIO.output(lights[0], GPIO.LOW)
+	#else:
+		#GPIO.output(lights[1], GPIO.LOW)
+		#for x in range(0, 3):
+			#time.sleep(.2)
+			#GPIO.output(lights[1], GPIO.HIGH)
+			#time.sleep(.2)
+			#GPIO.output(lights[1], GPIO.LOW)
 		
 
 
 
 def start():
-	last = GPIO.input(button)
+	RECORD = 0
+	#last = GPIO.input(button)
 	while True:
-		val = GPIO.input(button)
-		GPIO.wait_for_edge(button, GPIO.FALLING) # we wait for the button to be pressed
-		GPIO.output(lights[1], GPIO.HIGH)
-		inp = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, alsaaudio.PCM_NORMAL, device)
-		inp.setchannels(1)
-		inp.setrate(16000)
-		inp.setformat(alsaaudio.PCM_FORMAT_S16_LE)
-		inp.setperiodsize(500)
-		audio = ""
-		while(GPIO.input(button)==0): # we keep recording while the button is pressed
+		#val = GPIO.input(button)
+		#GPIO.wait_for_edge(button, GPIO.FALLING) # we wait for the button to be pressed
+		#GPIO.output(lights[1], GPIO.HIGH)
+		for event in pygame.event.get():
+			if (event.type == MOUSEBUTTONDOWN):
+				print "down"
+				RECORD = 1
+				inp = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, alsaaudio.PCM_NORMAL, device)
+				inp.setchannels(1)
+				inp.setrate(16000)
+				inp.setformat(alsaaudio.PCM_FORMAT_S16_LE)
+				inp.setperiodsize(500)
+				audio = ""
+			if (event.type == MOUSEBUTTONUP):
+				print "up"
+				RECORD = 2
+		#while(GPIO.input(button)==0): # we keep recording while the button is pressed
+		if (RECORD == 1):
 			l, data = inp.read()
 			if l:
 				audio += data
-		rf = open(path+'recording.wav', 'w')
-		rf.write(audio)
-		rf.close()
-		inp = None
-		alexa()
+		if (RECORD == 2):
+			RECORD = 0
+			rf = open(path+'recording.wav', 'w')
+			rf.write(audio)
+			rf.close()
+			inp = None
+			alexa()
 
 	
 
 if __name__ == "__main__":
-	GPIO.setwarnings(False)
-	GPIO.cleanup()
-	GPIO.setmode(GPIO.BCM)
-	GPIO.setup(button, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-	GPIO.setup(lights, GPIO.OUT)
-	GPIO.output(lights, GPIO.LOW)
+	#GPIO.setwarnings(False)
+	#GPIO.cleanup()
+	#GPIO.setmode(GPIO.BCM)
+	#GPIO.setup(button, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+	#GPIO.setup(lights, GPIO.OUT)
+	#GPIO.output(lights, GPIO.LOW)
 	while internet_on() == False:
 		print "."
 	token = gettoken()
 	os.system('mpg123 -q {}1sec.mp3 {}hello.mp3'.format(path, path))
-	for x in range(0, 3):
-		time.sleep(.1)
-		GPIO.output(lights[0], GPIO.HIGH)
-		time.sleep(.1)
-		GPIO.output(lights[0], GPIO.LOW)
+	#for x in range(0, 3):
+		#time.sleep(.1)
+		#GPIO.output(lights[0], GPIO.HIGH)
+		#time.sleep(.1)
+		#GPIO.output(lights[0], GPIO.LOW)
 	start()
